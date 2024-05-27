@@ -3,6 +3,7 @@ from datetime import timedelta
 
 import requests
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -15,12 +16,12 @@ BASE_API_URL = "https://api.nbrb.by/exrates/rates"
 
 
 def compute_crc32(data):
-    return str(zlib.crc32(data.encode('utf-8')) & 0xFFFFFFFF)
+    return str(zlib.crc32(data.encode("utf-8")) & 0xFFFFFFFF)
 
 
 @api_view(['GET'])
 def load_exchange_rates(request):
-    date = request.query_params.get('date')
+    date = request.query_params.get("date")
 
     if not date:
         return Response(
@@ -28,7 +29,7 @@ def load_exchange_rates(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    date = timezone.datetime.strptime(date, '%Y-%m-%d').date()
+    date = timezone.datetime.strptime(date, "%Y-%m-%d").date()
 
     params = {
         "ondate": date,
@@ -65,3 +66,41 @@ def load_exchange_rates(request):
     )
 
     return response
+
+
+@api_view(['GET'])
+def get_exchange_rate(request):
+    date = request.query_params.get("date")
+    currency = request.query_params.get("currency")
+
+    if not date or not currency:
+        return Response(
+            {"error": "The 'date' or 'currency' parameter is missing"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    exchange_rate = get_object_or_404(
+        ExchangeRate,
+        date=date,
+        currency=currency
+    )
+
+    serializer = ExchangeRateSerializer(exchange_rate)
+    response_data = serializer.data
+
+    prev_date = timezone.datetime.strptime(
+        date, "%Y-%m-%d") - timedelta(days=1)
+
+    try:
+        previous_rate = ExchangeRate.objects.get(
+            date=prev_date,
+            currency=currency
+        )
+        rate_difference = exchange_rate.rate - previous_rate.rate
+        response_data["change_course"] = "Declined" if rate_difference < 0 else "Increased"
+        response_data["rate_difference"] = rate_difference
+
+    except ExchangeRate.DoesNotExist:
+        response_data["rate_difference"] = None
+
+    return Response(response_data)
