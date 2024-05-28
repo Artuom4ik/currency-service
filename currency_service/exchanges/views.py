@@ -15,7 +15,7 @@ from .serializers import ExchangeRateSerializer
 BASE_API_URL = "https://api.nbrb.by/exrates/rates"
 
 
-def compute_crc32(data):
+def colculate_crc32(data):
     return str(zlib.crc32(data.encode("utf-8")) & 0xFFFFFFFF)
 
 
@@ -48,7 +48,7 @@ def load_exchange_rates(request):
 
     for rate in rates:
         ExchangeRate.objects.update_or_create(
-            date=rate["Date"],
+            date=date,
             currency_id=rate["Cur_ID"],
             currency_name=rate["Cur_Abbreviation"],
             defaults={
@@ -61,7 +61,7 @@ def load_exchange_rates(request):
     response = Response(
         {
             "message": response_data,
-            "crc32": compute_crc32(response_data)
+            "title": colculate_crc32(response_data)
         }
     )
 
@@ -82,7 +82,7 @@ def get_exchange_rate(request):
     exchange_rate = get_object_or_404(
         ExchangeRate,
         date=date,
-        currency=currency
+        currency_name=currency
     )
 
     serializer = ExchangeRateSerializer(exchange_rate)
@@ -94,13 +94,16 @@ def get_exchange_rate(request):
     try:
         previous_rate = ExchangeRate.objects.get(
             date=prev_date,
-            currency=currency
+            currency_name=currency
         )
         rate_difference = exchange_rate.rate - previous_rate.rate
         response_data["change_course"] = "Declined" if rate_difference < 0 else "Increased"
         response_data["rate_difference"] = rate_difference
 
     except ExchangeRate.DoesNotExist:
+        response_data["change_course"] = None
         response_data["rate_difference"] = None
+
+    response_data['title'] = colculate_crc32(str(response_data))
 
     return Response(response_data)
