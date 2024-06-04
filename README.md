@@ -17,7 +17,7 @@ git clone https://github.com/Artuom4ik/currency-service.git
 ```
 - Создайте виртуальное окружение командой
 ```
-python3 -m myvenv venv
+python3 -m venv myvenv
 ```
 - Активируйте виртуальное командой
 `Linux`
